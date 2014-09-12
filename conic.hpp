@@ -4,6 +4,46 @@
 #include <cmath>
 #include <vector>
 
+namespace vec_math {
+    
+    static std::vector<double> cross(const std::vector<double> &u,const std::vector<double> &v) {
+        return { u[1]*v[2] - u[2]*v[1],   u[2]*v[0] - u[0]*v[2],   u[0]*v[1] - u[1]*v[0] };
+    }
+
+    static double dot(const std::vector<double> &u,const std::vector<double> &v) {
+        return u[0]*v[0] + u[1]*v[1] + u[2]*v[2];
+    }
+
+    static double norm(const std::vector<double> &v) {
+        return sqrt(dot(v,v));
+    }
+
+    static std::vector<double> mult(const std::vector<double> &v,double s) {
+        return {v[0]*s, v[1]*s, v[2]*s};
+    }
+
+    static std::vector<double> mult(double s,const std::vector<double> &v) {
+        return mult(v,s);
+    }
+
+    static std::vector<double> div(const std::vector<double> &v,double s) {
+        return {v[0]/s, v[1]/s, v[2]/s};
+    }
+
+    static std::vector<double> add(const std::vector<double> &u,const std::vector<double> &v) {
+        return {u[0]+v[0], u[1]+v[1], u[2]+v[2]};
+    }
+
+    /*static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
+        return {u[0]-v[0], u[1]-v[1], u[2]-v[2]};
+    }
+
+    static std::vector<double> normalize(const std::vector<double> &v) {
+        return div(v,norm(v));
+    }*/
+
+}
+
 class Conic { public:
 
     double rp,e,i,O,w,M0,t0,mu;
@@ -54,8 +94,9 @@ class Conic { public:
     }
 
     void setup_rv(const double &t,const double &mu0,const std::vector<double> &r,const std::vector<double> &v) {
+        using namespace vec_math;
         t0 = t; mu = mu0;
-
+        
         auto h = cross(r,v);
         double hm = norm(h);
         muh = mu/hm;
@@ -107,25 +148,6 @@ class Conic { public:
         const double tpi = 2.0*M_PI;
         return x-floor(x/tpi)*tpi;
     }
-
-    static std::vector<double> cross(const std::vector<double> &u,const std::vector<double> &v) {
-        return { u[1]*v[2] - u[2]*v[1],
-                 u[2]*v[0] - u[0]*v[2],
-                 u[0]*v[1] - u[1]*v[0] };
-    }
-
-    static double dot(const std::vector<double> &u,const std::vector<double> &v) {
-        return u[0]*v[0] + u[1]*v[1] + u[2]*v[2];
-    }
-
-    static double norm(const std::vector<double> &v) {
-        return sqrt(dot(v,v));
-    }
-
-    void rv(const double &t,std::vector<double> &r,std::vector<double> &v) const {
-        auto sv = this->state(t);
-        for(unsigned i=0;i<3;i++) { r[i]=sv[i]; v[i]=sv[3+i]; }
-    };
 
     std::vector<double> state(const double &t) const {
         double f = kepler( n*(t-t0) + M0 );

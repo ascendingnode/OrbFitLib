@@ -1,6 +1,8 @@
 # distutils: language = c++
 # distutils: extra_compile_args = -std=c++11 -O3
 
+import numpy as np
+
 # C++ Standard Library vector class
 from libcpp.vector cimport vector
 
@@ -51,11 +53,45 @@ cdef class Orbit:
         sv = list(r)+list(v)
         self.thisptr.setup_state(t0,mu,sv)
 
+    def setup_helioline(self, line):
+        AU = 149597870.700
+        day = 24.*3600.
+        mu = 132712440023.310 *(day*day)
+        d2r = np.pi/180.
+        a,e,i,O,w,M0,t0 = [float(i) for i in line.split()]
+        self.setup_elements([a*(1-e)*AU,e,i*d2r,O*d2r,w*d2r,M0*d2r,t0,mu])
+
     # Extract elements or state from the class
     def elements(self, t):
-        return list(self.thisptr.elements(t))
+        return np.array(self.thisptr.elements(t))
     def state(self, t):
-        return list(self.thisptr.state(t))
+        return np.array(self.thisptr.state(t))
     def rv(self, t):
         sv = self.state(t)
         return sv[:3],sv[3:]
+
+####################################################
+
+# Import the parts of the C++ Lambert class we need
+cdef extern from "lambert.hpp":
+    cdef cppclass Lambert:
+        Lambert() except +
+        vector[double] transfer(double,vector[double],vector[double],double)
+
+# Python Lambert function
+"""cdef class lambert_transfer:
+
+    cdef Lambert *thisptr
+    def __cinit__(self):
+        self.thisptr = new Lambert()
+    def __del__(self):
+        del self.thisptr
+    
+    def velocity(self, mu,r1,r2,dt):
+        return np.array( self.thisptr.transfer(mu,r1,r2,dt) )"""
+
+def lambert_transfer(mu,r1,r2,dt):
+    cdef Lambert *lamb = new Lambert()
+    res = lamb.transfer(mu,r1,r2,dt)
+    del lamb
+    return np.array(res)
