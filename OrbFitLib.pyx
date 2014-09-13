@@ -59,7 +59,7 @@ cdef class Orbit:
         sv = list(r)+list(v)
         self.thisptr.setup_state(t0,mu,sv)
 
-    # Read a heliocentric orbit file
+    # Read a heliocentric orbit line
     def setup_helioline(self, line):
         cdef double AU = 149597870.700
         cdef double day = 24.*3600.
@@ -67,6 +67,14 @@ cdef class Orbit:
         cdef double d2r = np.pi/180.
         a,e,i,O,w,M0,t0 = [float(i) for i in line.split()]
         self.setup_elements([a*(1-e)*AU,e,i*d2r,O*d2r,w*d2r,M0*d2r,t0,mu])
+
+    # Print a heliocentric orbit line
+    def make_helioline(self):
+        AU = 149597870.700
+        r2d = 180./math.pi
+        a = self.rp/(AU*(1-self.e))
+        return '{0:.14E} {1:.14E} {2:.14E} {3:.14E} {4:.14E} {5:.14E} {6:.3f}'.format(
+                a,self.e,self.i*r2d,self.O*r2d,self.w*r2d,self.M0*r2d,self.t0)
 
     # Extract elements or state from the class
     def elements(self, t):
@@ -190,7 +198,7 @@ class MPC_File:
                 l.direction = d/np.linalg.norm(d);
         spice.unload(kernel)
 
-    def chi2(self, orbit):
+    def sumsq(self, orbit):
         cdef double r2a = 3600.*180./np.pi
         cdef double c = 299792.458*(24.*3600.)
         cdef double err = 0, ra, dec, dr, dd
@@ -208,4 +216,10 @@ class MPC_File:
         return err
 
     def rms(self, orbit):
-        return math.sqrt( self.chi2(orbit) / float(len(self.lines)) )
+        return math.sqrt( self.sumsq(orbit) / float(2.*len(self.lines)) )
+
+    def chi2(self, orbit,scatter):
+        return self.sumsq(orbit) / float(scatter)
+
+    def probability(self, orbit,scatter):
+        return math.exp(-0.5*self.chi2(orbit,scatter))

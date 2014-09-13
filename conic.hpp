@@ -88,9 +88,7 @@ class Conic { public:
     }
 
     void setup_state(const double &t,const double &mu0,const std::vector<double> &sv) {
-        std::vector<double> r(3),v(3);
-        for(unsigned i=0;i<3;i++) { r[i]=sv[i]; v[i]=sv[3+i]; }
-        setup_rv(t,mu0,r,v);
+        setup_rv(t,mu0, {sv[0],sv[1],sv[2]}, {sv[3],sv[4],sv[5]} );
     }
 
     void setup_rv(const double &t,const double &mu0,const std::vector<double> &r,const std::vector<double> &v) {
