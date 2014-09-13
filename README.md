@@ -3,11 +3,11 @@ OrbFitLib
 
 A Python library for fitting orbits.
 
-# Requirements
+## Requirements
 
 Python2 2.7 or greater or Python3, numpy, and emcee.
 
-# Installation
+## Installation
 
 To build and install locally:
 
