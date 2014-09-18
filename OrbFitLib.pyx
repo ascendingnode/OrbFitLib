@@ -5,6 +5,7 @@
 import numpy as np
 #cimport numpy as np
 import math
+import scipy.optimize as opt
 
 # Spice wrapper library
 import spice
@@ -67,6 +68,11 @@ cdef class Orbit:
         cdef double d2r = np.pi/180.
         a,e,i,O,w,M0,t0 = [float(i) for i in line.split()]
         self.setup_elements([a*(1-e)*AU,e,i*d2r,O*d2r,w*d2r,M0*d2r,t0,mu])
+
+    def setup_heliofile(self, fn):
+        f = open(fn)
+        l = f.readline()
+        self.setup_helioline(l)
 
     # Print a heliocentric orbit line
     def make_helioline(self):
@@ -173,8 +179,10 @@ class MPC_File:
             y = float(l2[47-1:57])
             z = float(l2[59-1:69])
             self.hst_geo_eq = np.array([x,y,z])
-
-    lines = []
+    
+    def __init__(self, fn=None):
+        self.lines = []
+        if fn!=None: self.read_file(fn)
 
     def read_file(self, fn):
         with open(fn) as f:
@@ -223,3 +231,23 @@ class MPC_File:
 
     def probability(self, orbit,scatter):
         return math.exp(-0.5*self.chi2(orbit,scatter))
+
+####################################################
+
+class deltav:
+
+    def __init__(self, ssc,jd,orbit):
+        self.jd0 = jd; self.orbit = orbit
+        self.rsc,self.vsc = (ssc[:3], ssc[3:])
+
+    def calc_vt(self, tf):
+        day = 24.*3600.
+        rf,vf = self.orbit.rv(tf)
+        return lambert_transfer(self.orbit.mu,self.rsc,rf,tf-self.jd0)/day
+
+    def calc_dv(self, tf):
+        return np.linalg.norm(self.vsc-self.calc_vt(tf))
+
+    def opt_tf(self, guess):
+        return opt.fmin(self.calc_dv,guess,disp=False)[0]
+
