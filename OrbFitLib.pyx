@@ -1,17 +1,48 @@
 # distutils: language = c++
+# distutils: libraries = cspice
 # distutils: extra_compile_args = -std=c++11 -O3
 
 # Numpy and math
 import numpy as np
-#cimport numpy as np
+cimport numpy as np
 import math
 import scipy.optimize as opt
 
-# Spice wrapper library
-import spice
-
 # C++ Standard Library vector class
 from libcpp.vector cimport vector
+from libcpp.string cimport string
+
+####################################################
+
+# Import NAIF SPICE functions
+cdef extern from "cspice/SpiceUsr.h":
+    void str2et_c(char *,double *)
+    void furnsh_c(char *)
+    void unload_c(char *)
+    void spkpos_c(char *,double,char *,char *,char *,double *,double *)
+
+def furnsh(string kernel):
+    furnsh_c(kernel.c_str())
+
+def unload(string kernel):
+    unload_c(kernel.c_str())
+
+def spkpos(string targ,double et,string ref,string abcorr,string obs):
+    cdef double lt
+    cdef np.ndarray[np.double_t, ndim=1, mode="c"] pos
+    pos = np.ascontiguousarray([0.]*3, dtype=np.double)
+    spkpos_c(targ.c_str(),et,ref.c_str(),abcorr.c_str(),obs.c_str(),&pos[0],&lt)
+    return pos,lt
+
+def JD2etUTC(JD):
+    cdef double et
+    cdef string s = 'JD {0:.15f} UTC'.format(JD)
+    str2et_c(s.c_str(),&et)
+    return et
+
+#def radrec(ran,ra,dec):
+
+####################################################
 
 # Import the parts of the C++ Conic class we need
 cdef extern from "conic.hpp":
@@ -162,9 +193,6 @@ def sex2rad(sex):
     if d<0: dd *= -1.
     return dd*np.pi/180.;
 
-def JD2etUTC(JD):
-    return spice.str2et('JD {0:.15f} UTC'.format(JD))
-
 class MPC_File:
 
     class MPC_Line:
@@ -193,18 +221,18 @@ class MPC_File:
                 self.lines.append(self.MPC_Line(line1,line2))
 
     def add_spice(self, kernel,dist=None):
-        spice.furnsh(kernel)
+        furnsh(kernel)
         for l in self.lines:
             l.et = JD2etUTC(l.JD)
-            r2,lt = spice.spkpos("10",l.et,"J2000","LT","399")
+            r2,lt = spkpos("10",l.et,"J2000","LT","399")
             l.hst_eq = np.array(r2)-l.hst_geo_eq
-            if dist==None:
+            """if dist==None:
                 l.direction = np.array(spice.radrec(1,l.ra,l.dec))
             else:
                 AU = 149597870.7
                 d = np.array(spice.radrec(dist*AU,l.ra,l.dec)) + l.hst_eq;
-                l.direction = d/np.linalg.norm(d);
-        spice.unload(kernel)
+                l.direction = d/np.linalg.norm(d);"""
+        unload(kernel)
 
     def sumsq(self, orbit):
         cdef double r2a = 3600.*180./np.pi
