@@ -7,6 +7,7 @@ import numpy as np
 cimport numpy as np
 import math
 import scipy.optimize as opt
+import SimSpice as spice
 
 # C++ Standard Library vector class
 from libcpp.vector cimport vector
@@ -15,7 +16,7 @@ from libcpp.string cimport string
 ####################################################
 
 # Import NAIF SPICE functions
-cdef extern from "cspice/SpiceUsr.h":
+"""cdef extern from "cspice/SpiceUsr.h":
     void str2et_c(char *,double *)
     void furnsh_c(char *)
     void unload_c(char *)
@@ -38,7 +39,7 @@ def JD2etUTC(JD):
     cdef double et
     cdef string s = 'JD {0:.15f} UTC'.format(JD)
     str2et_c(s.c_str(),&et)
-    return et
+    return et"""
 
 #def radrec(ran,ra,dec):
 
@@ -221,10 +222,11 @@ class MPC_File:
                 self.lines.append(self.MPC_Line(line1,line2))
 
     def add_spice(self, kernel,dist=None):
-        furnsh(kernel)
+        spice.furnsh(kernel)
         for l in self.lines:
-            l.et = JD2etUTC(l.JD)
-            r2,lt = spkpos("10",l.et,"J2000","LT","399")
+            #l.et = JD2etUTC(l.JD)
+            l.et = spice.str2et('JD {0:.15f} UTC'.format(l.JD))
+            r2,lt = spice.spkpos("10",l.et,"J2000","LT","399")
             l.hst_eq = np.array(r2)-l.hst_geo_eq
             """if dist==None:
                 l.direction = np.array(spice.radrec(1,l.ra,l.dec))
@@ -232,7 +234,7 @@ class MPC_File:
                 AU = 149597870.7
                 d = np.array(spice.radrec(dist*AU,l.ra,l.dec)) + l.hst_eq;
                 l.direction = d/np.linalg.norm(d);"""
-        unload(kernel)
+        spice.unload(kernel)
 
     def sumsq(self, orbit):
         cdef double r2a = 3600.*180./np.pi
@@ -250,6 +252,52 @@ class MPC_File:
             dd = (l.dec-dec)*r2a
             err += dr*dr + dd*dd
         return err
+
+    """def residuals(self, orbit):
+        cdef double r2a = 3600.*180./np.pi
+        cdef double c = 299792.458*(24.*3600.)
+        rr,rd = ([],[])
+        cdef double ra, dec, dr, dd
+        for l in self.lines:
+            r1,v1 = orbit.rv(l.JD)
+            r = r1 + l.hst_eq
+            r1,v1 = orbit.rv(l.JD - np.linalg.norm(r)/c)
+            r = r1 + l.hst_eq
+            ra = math.atan2(r[1],r[0])
+            dec = math.atan(math.sin(ra)*r[2]/r[1])
+            dr = (l.ra-ra)*math.sin(l.dec)*r2a
+            dd = (l.dec-dec)*r2a
+            rr.append(dr); rd.append(dd)
+        return rr,rd"""
+
+    def residuals(self, orbit):
+        cdef double r2a = 3600.*180./np.pi
+        cdef double c = 299792.458*(24.*3600.)
+        cdef double ra, dec, dr, dd
+        cdef double AU = 149597870.7
+        ras = []
+        des = []
+        dists = []
+        eras = []
+        edes = []
+        for l in self.lines:
+            r1,v1 = orbit.rv(l.JD)
+            r = r1 + l.hst_eq
+            r1,v1 = orbit.rv(l.JD - np.linalg.norm(r)/c)
+            r = r1 + l.hst_eq
+            ra = math.atan2(r[1],r[0])
+            dec = math.atan(math.sin(ra)*r[2]/r[1])
+            if ra<0: ra += 2.*math.pi
+            dr = (l.ra-ra)*math.sin(l.dec)*r2a
+            dd = (l.dec-dec)*r2a
+            #err += dr*dr + dd*dd
+            ras.append(ra)
+            des.append(dec)
+            dists.append(np.linalg.norm(r)/AU)
+            eras.append(dr)
+            edes.append(dd)
+        return ras,des,dists,eras,edes
+
 
     def rms(self, orbit):
         return math.sqrt( self.sumsq(orbit) / float(2.*len(self.lines)) )
