@@ -30,6 +30,7 @@ def lambert_transfer(mu,r1,r2,dt):
 
 ####################################################
 
+# Make formated string of elements
 def make_helioline(orb):
     AU = 149597870.700
     r2d = 180./math.pi
@@ -37,6 +38,7 @@ def make_helioline(orb):
     return '{0:.14E} {1:.14E} {2:.14E} {3:.14E} {4:.14E} {5:.14E} {6:.3f}'.format(
             a,orb.e,orb.i*r2d,orb.O*r2d,orb.w*r2d,orb.M0*r2d,orb.t0)
 
+# Convert an ecliptic vector to equitorial
 def ec2eq(ec):
     cdef double eta = (23.+(26/60.)+(21.406/3600.))*math.pi/180.
     cdef double se = math.sin(eta)
@@ -46,6 +48,7 @@ def ec2eq(ec):
     eq[2] =  se*ec[1] + ce*ec[2]
     return eq
 
+# Convert an equitorial vector to ecliptic
 def eq2ec(eq):
     cdef double eta = (23.+(26/60.)+(21.406/3600.))*math.pi/180.
     cdef double se = math.sin(eta)
@@ -55,12 +58,14 @@ def eq2ec(eq):
     ec[2] = -se*eq[1] + ce*eq[2]
     return ec
 
+# Convert an ecliptic orbit to equitorial
 def ec2eq_orbit(orbit):
     r,v = orbit.rv(orbit.t0)
     o2 = Conic()
     o2.setup_rv(orbit.t0,orbit.mu,ec2eq(r),ec2eq(v))
     return o2
 
+# Convert an equitorial orbit to ecliptic
 def eq2ec_orbit(orbit):
     r,v = orbit.rv(orbit.t0)
     o2 = Conic()
@@ -69,6 +74,7 @@ def eq2ec_orbit(orbit):
 
 ####################################################
 
+# Convert an MPC file's date string into a decimal JD UTC
 def MPCdate2JD(ds):
     cdef int year,month,y,m,B
     cdef double dday
@@ -81,6 +87,7 @@ def MPCdate2JD(ds):
     B = int(y//400) - int(y//100)
     return 1720996.5 + int(365.25*y) + int(30.6001*(m+1)) + B + dday
 
+# Convert sexigesimal ddd:mm:ss.ssss string to decimal dd.ddddd float
 def sex2rad(sex):
     cdef int d,m,ad
     cdef double s,dd
@@ -93,6 +100,8 @@ def sex2rad(sex):
 
 class MPC_File:
 
+    # Object to process and store an astrometric point from an MPC file
+    # *** Currently only works with two-line spacecraft format ***
     class MPC_Line:
         def __init__(self, l1=None,l2=None):
             if l1==None or l2==None: return
@@ -104,15 +113,16 @@ class MPC_File:
             x = float(l2[35-1:45])
             y = float(l2[47-1:57])
             z = float(l2[59-1:69])
-            self.hst_geo_eq = np.array([x,y,z])
+            self.obs_geo_eq = np.array([x,y,z])
             self.spiced = False
     
+    # Constructor
     def __init__(self, fn=None):
         self.AU = 149597870.7
         self.mu = 132889724474.839203
         self.lines = []
         self.radec = []
-        self.uncert = []
+        self.inv_sigma2 = []
         if fn!=None: self.read_file(fn)
         self.maxe = 0.25
         self.mina = 25*self.AU
@@ -134,23 +144,29 @@ class MPC_File:
         for l in self.lines:
             if l.spiced: continue
             l.et = spice.str2et('JD {0:.15f} UTC'.format(l.JD))
+            # Cache lighttime corrected position of the geocenter relative to solar system barycenter
             r2,lt = spice.spkpos("10",l.et,"J2000","LT","399")
-            l.hst_eq = np.array(r2)-l.hst_geo_eq
+            # Offset position of observer from solar system barycenter
+            l.obs_eq = np.array(r2)-l.obs_geo_eq
             self.radec = np.append(self.radec,[l.ra,l.dec])
-            self.uncert = np.append(self.uncert,[0.001*s2r/15.,0.01*s2r])
+            # Default uncertainty = rounding error in MPC format
+            self.inv_sigma2 = np.append(self.inv_sigma2,[(0.001*s2r*15.)**-2,(0.01*s2r)**-2])
             l.spiced = True
         spice.kclear()
         self.et0 = self.lines[0].et
 
-    # Predict ra and dec for a given orbit
+    # Predict RA & Dec for a given orbit
     def predict(self, orbit):
         c = 299792.458
         radec_calc = []
         for l in self.lines:
+            # Make initial calculation of position
             r1,v1 = orbit.rv(l.et)
-            r = r1 + l.hst_eq
+            r = r1 + l.obs_eq
+            # Calculate lighttime-corrected position
             r1,v1 = orbit.rv(l.et - np.linalg.norm(r)/c)
-            r = r1 + l.hst_eq
+            r = r1 + l.obs_eq
+            # Convert to RA & Dec (in radians)
             ra = math.atan2(r[1],r[0])
             dec = math.atan(math.sin(ra)*r[2]/r[1])
             if ra<0: ra += 2.*math.pi
@@ -167,16 +183,20 @@ class MPC_File:
         for i in range(len(self.radec)//2):
             ra1,de1 = (self.radec[2*i],self.radec[2*i+1])
             ra2,de2 = (radec_calc[2*i],radec_calc[2*i+1])
+            # Do a sin(dec) correction so RA is in proper arcseconds
             dr = ra1*math.sin(de1) - ra2*math.sin(de2)
             dd = de1 - de2
             sumsq += dr*dr + dd*dd
         return math.sqrt(sumsq/len(self.radec))*r2mas
 
+    # Calculate Chi-Squared of a given orbit
+    def X2(self, orbit):
+        return np.sum((self.radec-self.predict(orbit))**2*self.inv_sigma2)
+
     # Calculate log likelihood of a given orbit
     def lnlike(self, orbit):
-        model = self.predict(orbit)
-        inv_sigma2 = 1.0/(self.uncert**2 + model**2)
-        return -0.5*(np.sum((self.radec-model)**2*inv_sigma2))
+        # P ~ exp( -X2 / 2 )
+        return -0.5*self.X2(orbit)
 
     # Apply priors
     def lnprior(self, orbit):
@@ -194,8 +214,10 @@ class MPC_File:
 
 ####################################################
 
+# Class to make delta v calculations
 class deltav:
 
+    # Constructor
     def __init__(self, ssc,et,orbit):
         self.et0 = et; self.orbit = orbit
         self.rsc,self.vsc = (ssc[:3], ssc[3:])
