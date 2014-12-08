@@ -105,11 +105,20 @@ class MPC_File:
             y = float(l2[47-1:57])
             z = float(l2[59-1:69])
             self.hst_geo_eq = np.array([x,y,z])
+            self.spiced = False
     
     def __init__(self, fn=None):
+        self.AU = 149597870.7
+        self.mu = 132889724474.839203
         self.lines = []
+        self.radec = []
+        self.uncert = []
         if fn!=None: self.read_file(fn)
+        self.maxe = 0.25
+        self.mina = 25*self.AU
+        self.maxa = 100*self.AU
 
+    # Read an MPC file
     def read_file(self, fn):
         with open(fn) as f:
             while True:
@@ -118,83 +127,96 @@ class MPC_File:
                 if not line1 or not line2: break
                 self.lines.append(self.MPC_Line(line1,line2))
 
-    def add_spice(self, kernel,dist=None):
+    # Add spice information
+    def add_spice(self, kernel):
+        s2r = np.pi/(180.*3600.)
         spice.furnsh(kernel)
         for l in self.lines:
+            if l.spiced: continue
             l.et = spice.str2et('JD {0:.15f} UTC'.format(l.JD))
             r2,lt = spice.spkpos("10",l.et,"J2000","LT","399")
             l.hst_eq = np.array(r2)-l.hst_geo_eq
+            self.radec = np.append(self.radec,[l.ra,l.dec])
+            self.uncert = np.append(self.uncert,[0.001*s2r/15.,0.01*s2r])
+            l.spiced = True
         spice.kclear()
+        self.et0 = self.lines[0].et
 
-    def sumsq(self, orbit):
-        cdef double r2a = 3600.*180./np.pi
-        cdef double c = 299792.458*(24.*3600.)
-        cdef double err = 0, ra, dec, dr, dd
+    # Predict ra and dec for a given orbit
+    def predict(self, orbit):
+        c = 299792.458
+        radec_calc = []
         for l in self.lines:
-            r1,v1 = orbit.rv(l.JD)
+            r1,v1 = orbit.rv(l.et)
             r = r1 + l.hst_eq
-            r1,v1 = orbit.rv(l.JD - np.linalg.norm(r)/c)
+            r1,v1 = orbit.rv(l.et - np.linalg.norm(r)/c)
             r = r1 + l.hst_eq
             ra = math.atan2(r[1],r[0])
             dec = math.atan(math.sin(ra)*r[2]/r[1])
             if ra<0: ra += 2.*math.pi
-            dr = (l.ra-ra)*math.sin(l.dec)*r2a
-            dd = (l.dec-dec)*r2a
-            err += dr*dr + dd*dd
-        return err
+            radec_calc = np.append(radec_calc,[ra,dec])
+        return radec_calc
 
-    def residuals(self, orbit):
-        cdef double r2a = 3600.*180./np.pi
-        cdef double c = 299792.458*(24.*3600.)
-        cdef double ra, dec, dr, dd
-        cdef double AU = 149597870.7
-        ras = []
-        des = []
-        dists = []
-        eras = []
-        edes = []
-        for l in self.lines:
-            r1,v1 = orbit.rv(l.JD)
-            r = r1 + l.hst_eq
-            r1,v1 = orbit.rv(l.JD - np.linalg.norm(r)/c)
-            r = r1 + l.hst_eq
-            ra = math.atan2(r[1],r[0])
-            dec = math.atan(math.sin(ra)*r[2]/r[1])
-            if ra<0: ra += 2.*math.pi
-            dr = (l.ra-ra)*math.sin(l.dec)*r2a
-            dd = (l.dec-dec)*r2a
-            ras.append(ra)
-            des.append(dec)
-            dists.append(np.linalg.norm(r)/AU)
-            eras.append(dr)
-            edes.append(dd)
-        return ras,des,dists,eras,edes
+    # Calculate RMS error of an orbit (correcting for cos(dec))
+    def rms(self, state):
+        orbit = Conic()
+        orbit.setup_state(self.et0,self.mu,state)
+        r2mas = 3600e3*180./np.pi
+        radec_calc = self.predict(orbit)
+        sumsq = 0
+        for i in range(len(self.radec)//2):
+            ra1,de1 = (self.radec[2*i],self.radec[2*i+1])
+            ra2,de2 = (radec_calc[2*i],radec_calc[2*i+1])
+            dr = ra1*math.sin(de1) - ra2*math.sin(de2)
+            dd = de1 - de2
+            sumsq += dr*dr + dd*dd
+        return math.sqrt(sumsq/len(self.radec))*r2mas
 
-    def rms(self, orbit):
-        return math.sqrt( self.sumsq(orbit) / float(2.*len(self.lines)) )
+    # Calculate log likelihood of a given orbit
+    def lnlike(self, orbit):
+        model = self.predict(orbit)
+        inv_sigma2 = 1.0/(self.uncert**2 + model**2)
+        return -0.5*(np.sum((self.radec-model)**2*inv_sigma2))
 
-    def chi2(self, orbit,scatter):
-        return self.sumsq(orbit) / float(scatter)
+    # Apply priors
+    def lnprior(self, orbit):
+        if 0 < orbit.e < self.maxe and self.mina < orbit.rp/(1.-orbit.e) < self.maxa:
+            return 0.0
+        return -np.inf
 
-    def probability(self, orbit,scatter):
-        return math.exp(-0.5*self.chi2(orbit,scatter))
+    # Calculate log probability of a given state vector
+    def lnprob(self, state):
+        orb = Conic()
+        orb.setup_state(self.et0,self.mu,state)
+        lp = self.lnprior(orb)
+        if not np.isfinite(lp): return -np.inf
+        return lp + self.lnlike(orb)
 
 ####################################################
 
 class deltav:
 
-    def __init__(self, ssc,jd,orbit):
-        self.jd0 = jd; self.orbit = orbit
+    def __init__(self, ssc,et,orbit):
+        self.et0 = et; self.orbit = orbit
         self.rsc,self.vsc = (ssc[:3], ssc[3:])
 
+    # Calculate a transfer velocity, given an encounter time
     def calc_vt(self, tf):
-        day = 24.*3600.
         rf,vf = self.orbit.rv(tf)
-        return lambert_transfer(self.orbit.mu,self.rsc,rf,tf-self.jd0)/day
+        return lambert_transfer(self.orbit.mu,self.rsc,rf,tf-self.et0)
 
+    # Return a transfer orbit, given an encounter time
+    def calc_orb(self, tf):
+        vt = self.calc_vt(tf)
+        ret = Conic()
+        ret.setup_rv(self.orbit.t0,self.orbit.mu,self.rsc,vt)
+        return ret
+
+    # Calculate the delta v for an encounter time
     def calc_dv(self, tf):
         return np.linalg.norm(self.vsc-self.calc_vt(tf))
 
+    # Find the encounter time with minimum delta v 
     def opt_tf(self, guess):
         return opt.fmin(self.calc_dv,guess,disp=False)[0]
 
