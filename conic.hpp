@@ -7,7 +7,12 @@
 namespace vec_math {
     
     static std::vector<double> cross(const std::vector<double> &u,const std::vector<double> &v) {
-        return { u[1]*v[2] - u[2]*v[1],   u[2]*v[0] - u[0]*v[2],   u[0]*v[1] - u[1]*v[0] };
+        //return { u[1]*v[2] - u[2]*v[1],   u[2]*v[0] - u[0]*v[2],   u[0]*v[1] - u[1]*v[0] };
+        std::vector<double> ret(3);
+        ret[0] = u[1]*v[2] - u[2]*v[1];
+        ret[1] = u[2]*v[0] - u[0]*v[2];
+        ret[2] = u[0]*v[1] - u[1]*v[0];
+        return ret;
     }
 
     static double dot(const std::vector<double> &u,const std::vector<double> &v) {
@@ -19,7 +24,12 @@ namespace vec_math {
     }
 
     static std::vector<double> mult(const std::vector<double> &v,double s) {
-        return {v[0]*s, v[1]*s, v[2]*s};
+        //return {v[0]*s, v[1]*s, v[2]*s};
+        std::vector<double> ret(3);
+        ret[0] = v[0]*s;
+        ret[1] = v[1]*s;
+        ret[2] = v[2]*s;
+        return ret;
     }
 
     static std::vector<double> mult(double s,const std::vector<double> &v) {
@@ -27,11 +37,21 @@ namespace vec_math {
     }
 
     static std::vector<double> div(const std::vector<double> &v,double s) {
-        return {v[0]/s, v[1]/s, v[2]/s};
+        //return {v[0]/s, v[1]/s, v[2]/s};
+        std::vector<double> ret(3);
+        ret[0] = v[0]/s;
+        ret[1] = v[1]/s;
+        ret[2] = v[2]/s;
+        return ret;
     }
 
     static std::vector<double> add(const std::vector<double> &u,const std::vector<double> &v) {
-        return {u[0]+v[0], u[1]+v[1], u[2]+v[2]};
+        //return {u[0]+v[0], u[1]+v[1], u[2]+v[2]};
+        std::vector<double> ret(3);
+        ret[0] = u[0]+v[0];
+        ret[1] = u[1]+v[1];
+        ret[2] = u[2]+v[2];
+        return ret;
     }
 
     /*static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
@@ -88,14 +108,19 @@ class Conic { public:
     }
 
     void setup_state(const double &t,const double &mu0,const std::vector<double> &sv) {
-        setup_rv(t,mu0, {sv[0],sv[1],sv[2]}, {sv[3],sv[4],sv[5]} );
+        std::vector<double> r(3),v(3);
+        r[0] = sv[0]; v[0] = sv[3];
+        r[1] = sv[1]; v[1] = sv[4];
+        r[2] = sv[2]; v[2] = sv[5];
+        setup_rv(t,mu0,r,v);
+        //setup_rv(t,mu0, {sv[0],sv[1],sv[2]}, {sv[3],sv[4],sv[5]} );
     }
 
     void setup_rv(const double &t,const double &mu0,const std::vector<double> &r,const std::vector<double> &v) {
         using namespace vec_math;
         t0 = t; mu = mu0;
         
-        auto h = cross(r,v);
+        std::vector<double> h = cross(r,v);
         double hm = norm(h);
         muh = mu/hm;
         p = (hm*hm)/mu;
@@ -204,7 +229,13 @@ class Conic { public:
 
     // Recursion FTW
     std::vector<double> elements(double t) const {
-        if(t==t0) return {rp,e,i,O,w,M0,t0,mu};
+        if(t==t0) {
+            //return {rp,e,i,O,w,M0,t0,mu};
+            std::vector<double> ret;
+            ret[0] = rp; ret[1] =  e; ret[2] =  i; ret[3] =  O;
+            ret[4] =  w; ret[5] = M0; ret[6] = t0; ret[7] = mu;
+            return ret;
+        }
         return Conic(t,mu,this->state(t)).elements(t);
     }
 

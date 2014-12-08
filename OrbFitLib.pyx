@@ -1,5 +1,5 @@
 # distutils: language = c++
-# distutils: extra_compile_args = -std=c++11 -O3
+# distutils: extra_compile_args = -O3
 
 # Numpy and math
 import numpy as np

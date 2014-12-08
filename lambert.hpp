@@ -115,7 +115,7 @@ class Lambert { public:
 
         // Normalize the vectors
         double r1 = norm(r1v), r2 = norm(r2v);
-        auto r1n = div(r1v,r1), r2n = div(r2v,r2);
+        std::vector<double> r1n = div(r1v,r1), r2n = div(r2v,r2);
         
         // Define the geometry of the problem
         double theta = acos(dot(r1n,r2n));
