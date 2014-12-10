@@ -3,5 +3,5 @@ from Cython.Build import cythonize
 
 setup(
         name = "OrbFitLib",
-        ext_modules = cythonize('OrbFitLib.pyx'),
+        ext_modules = cythonize('OrbFitLib.pyx','SimSpice.pyx'),
         )

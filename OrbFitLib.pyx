@@ -5,9 +5,11 @@
 import numpy as np
 cimport numpy as np
 import math
+
 import scipy.optimize as opt
 from PyNBody import Conic
 import SimSpice as spice
+import emcee
 
 # C++ Standard Library vector class
 from libcpp.vector cimport vector
@@ -119,12 +121,14 @@ class MPC_File:
     # Constructor
     def __init__(self, fn=None):
         self.AU = 149597870.7
-        self.mu = 132889724474.839203
+        # Includes the masses of the Sun, Jupiter, and Saturn
+        self.mu = 132877093391.27286 
         self.lines = []
         self.radec = []
         self.inv_sigma2 = []
         if fn!=None: self.read_file(fn)
-        self.maxe = 0.25
+        # Rough priors for TNOs
+        self.maxe = 0.9
         self.mina = 25*self.AU
         self.maxa = 100*self.AU
 
@@ -140,58 +144,60 @@ class MPC_File:
     # Add spice information
     def add_spice(self, kernel):
         s2r = np.pi/(180.*3600.)
+        ra_round = 0.001*s2r*15.
+        de_round = 0.01*s2r
         spice.furnsh(kernel)
         for l in self.lines:
             if l.spiced: continue
             l.et = spice.str2et('JD {0:.15f} UTC'.format(l.JD))
             # Cache lighttime corrected position of the geocenter relative to solar system barycenter
-            r2,lt = spice.spkpos("10",l.et,"J2000","LT","399")
+            r2 = spice.spkpos("0",l.et,"J2000","LT","399")[0]
             # Offset position of observer from solar system barycenter
-            l.obs_eq = np.array(r2)-l.obs_geo_eq
-            self.radec = np.append(self.radec,[l.ra,l.dec])
+            l.obs_eq = r2-l.obs_geo_eq
+            # The radec array is [RA0 cos(Dec0), Dec0, RA1 cos(Dec1), Dec1, ...] in radians
+            self.radec = np.append(self.radec,[l.ra*math.cos(l.dec),l.dec])
             # Default uncertainty = rounding error in MPC format
-            self.inv_sigma2 = np.append(self.inv_sigma2,[(0.001*s2r*15.)**-2,(0.01*s2r)**-2])
+            self.inv_sigma2 = np.append(self.inv_sigma2,[ra_round**-2,de_round**-2])
             l.spiced = True
         spice.kclear()
         self.et0 = self.lines[0].et
 
+    # Convert a state vector to an orbit
+    def to_orbit(self, state):
+        orb = Conic()
+        orb.setup_state(self.et0,self.mu,state)
+        return orb
+
     # Predict RA & Dec for a given orbit
     def predict(self, orbit):
+        # Seems small when you put in km/s
         c = 299792.458
         radec_calc = []
         for l in self.lines:
             # Make initial calculation of position
-            r1,v1 = orbit.rv(l.et)
-            r = r1 + l.obs_eq
+            r1 = orbit.rv(l.et)[0]
+            r2 = r1 + l.obs_eq
             # Calculate lighttime-corrected position
-            r1,v1 = orbit.rv(l.et - np.linalg.norm(r)/c)
-            r = r1 + l.obs_eq
+            r3 = orbit.rv(l.et - np.linalg.norm(r2)/c)[0]
+            r = r3 + l.obs_eq
             # Convert to RA & Dec (in radians)
             ra = math.atan2(r[1],r[0])
             dec = math.atan(math.sin(ra)*r[2]/r[1])
             if ra<0: ra += 2.*math.pi
-            radec_calc = np.append(radec_calc,[ra,dec])
+            radec_calc = np.append(radec_calc,[ra*math.cos(dec),dec])
         return radec_calc
 
-    # Calculate RMS error of an orbit (correcting for cos(dec))
+    # Calculate RMS error of an orbit
     def rms(self, state):
-        orbit = Conic()
-        orbit.setup_state(self.et0,self.mu,state)
+        model = self.predict(self.to_orbit(state))
         r2mas = 3600e3*180./np.pi
-        radec_calc = self.predict(orbit)
-        sumsq = 0
-        for i in range(len(self.radec)//2):
-            ra1,de1 = (self.radec[2*i],self.radec[2*i+1])
-            ra2,de2 = (radec_calc[2*i],radec_calc[2*i+1])
-            # Do a sin(dec) correction so RA is in proper arcseconds
-            dr = ra1*math.sin(de1) - ra2*math.sin(de2)
-            dd = de1 - de2
-            sumsq += dr*dr + dd*dd
-        return math.sqrt(sumsq/len(self.radec))*r2mas
+        #return np.sum((self.radec-model)**2/len(self.radec))*r2mas
+        return np.sqrt(np.mean(np.square(self.radec-model)))*r2mas
 
     # Calculate Chi-Squared of a given orbit
     def X2(self, orbit):
-        return np.sum((self.radec-self.predict(orbit))**2*self.inv_sigma2)
+        #return np.sum((self.radec-self.predict(orbit))**2*self.inv_sigma2)
+        return np.sum(np.square(self.radec-self.predict(orbit))*self.inv_sigma2)
 
     # Calculate log likelihood of a given orbit
     def lnlike(self, orbit):
@@ -206,11 +212,64 @@ class MPC_File:
 
     # Calculate log probability of a given state vector
     def lnprob(self, state):
-        orb = Conic()
-        orb.setup_state(self.et0,self.mu,state)
+        orb = self.to_orbit(state)
         lp = self.lnprior(orb)
         if not np.isfinite(lp): return -np.inf
         return lp + self.lnlike(orb)
+
+    # Make an initial guess within the bounds
+    def guess(self):
+        a = np.random.uniform(self.mina,self.maxa)
+        e = np.random.uniform(0,self.maxe)
+        i = np.random.uniform(0,0.5*np.pi)
+        O = np.random.uniform(0,2.*np.pi)
+        w = np.random.uniform(0,2.*np.pi)
+        M = np.random.uniform(0,2.*np.pi)
+        orb = Conic()
+        orb.setup_elements([a*(1-e),e,i,O,w,M,self.et0,self.mu])
+        return orb.state(self.et0)
+
+    # Generate a guess with less than the given RMS error
+    def good_guess(self, maxrms):
+        while True:
+            g = self.guess()
+            for i in range(5):
+                g = opt.fmin(self.rms,g,disp=False)
+            if self.rms(g)<maxrms: return g
+
+    # Create a group of walkers for emcee
+    def make_walkers(self, g,maxrms,nwalkers):
+        pert = 1e-7
+        rm,vm = ( np.linalg.norm(g[:3]), np.linalg.norm(g[3:]) )
+        walkers = []
+        for nw in range(nwalkers):
+            while True:
+                p = np.zeros(6)
+                for i in range(3):
+                    p[i  ] = np.random.normal(g[i  ],rm*pert)
+                    p[i+3] = np.random.normal(g[i+3],vm*pert)
+                if self.rms(p)<maxrms:
+                    walkers.append(p)
+                    break
+        return np.array(walkers)
+
+    # Use emcee to make an unbiased cloud of solutions
+    def make_cloud(self, maxrms,nwalkers,niter1,niter2,verbose=False):
+        
+        if verbose: print("# Generating initial good guess")
+        g = self.good_guess(maxrms)
+
+        if verbose: print("# Generating {:} walkers".format(nwalkers))
+        walkers = self.make_walkers(g,maxrms,nwalkers)
+
+        if verbose: print("# Running emcee for {:} iterations to burn in".format(niter1))
+        sampler = emcee.EnsembleSampler(nwalkers, 6, self.lnprob)
+        pos, prob, state = sampler.run_mcmc(walkers, niter1)
+
+        if verbose: print("# Running emcee for {:} iterations".format(niter2))
+        sampler.run_mcmc(pos, niter2)
+        
+        return sampler
 
 ####################################################
 
