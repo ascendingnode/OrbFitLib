@@ -13,7 +13,13 @@ A Python library for fitting orbits.
 
 ## Installation
 
-You can install the latest versions of the required Python libraries with:
+You can install the latest versions of the required Python libraries locally (just for you) with:
+
+```bash
+pip install --upgrade cython numpy scipy emcee --user
+```
+
+or globally (all users):
 
 ```bash
 sudo pip install --upgrade cython numpy scipy emcee
@@ -30,8 +36,12 @@ To avoid having to edit the SimSpice.pyx file:
 
 To build and install locally:
 
+```bash
 python setup.py build_ext install --user
+```
 
 To build and install globally:
 
+```bash
 sudo python setup.py build_ext install
+```

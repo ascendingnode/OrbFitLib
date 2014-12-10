@@ -8,8 +8,7 @@ import math
 
 # Numpy and Scipy
 import numpy as np
-cimport numpy as np
-import scipy.optimize as opt
+from scipy.optimize import fmin
 
 # C++ vector for Conic
 from libcpp.vector cimport vector
@@ -297,7 +296,7 @@ class MPC_File:
         while True:
             g = self.guess()
             for i in range(5):
-                g = opt.fmin(self.rms,g,disp=False)
+                g = fmin(self.rms,g,disp=False)
             if self.rms(g)<maxrms: return g
 
     # Create a group of walkers for emcee
@@ -362,5 +361,5 @@ class deltav:
 
     # Find the encounter time with minimum delta v 
     def opt_tf(self, guess):
-        return opt.fmin(self.calc_dv,guess,disp=False)[0]
+        return fmin(self.calc_dv,guess,disp=False)[0]
 
