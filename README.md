@@ -25,6 +25,12 @@ or globally (all users):
 sudo pip install --upgrade cython numpy scipy emcee
 ```
 
+Installing NumPy with pip will require some additional C libraries; [see here](http://www.scipy.org/install.html). On Ubuntu this can accomplished with:
+
+```bash
+sudo apt-get install libblas-dev liblapack-dev
+```
+
 ### Download CSPICE 
 
 To avoid having to edit the SimSpice.pyx file:
