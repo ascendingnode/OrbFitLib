@@ -1,6 +1,13 @@
 #ifndef __LAMBERT_HPP__
 #define __LAMBERT_HPP__
 
+// Solver for Lambert's Problem
+//
+// Based on "A Unified Form of Lambert's Theorem"
+// E.R. Lancaster and R.C. Blanchard (GSFC)
+// NASA Technical Note D-5368, September 1969 
+
+// For the vec_math namespace
 #include "conic.hpp"
 
 class Lambert { public:

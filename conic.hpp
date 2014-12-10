@@ -54,11 +54,16 @@ namespace vec_math {
         return ret;
     }
 
-    /*static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
-        return {u[0]-v[0], u[1]-v[1], u[2]-v[2]};
+    static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
+        //return {u[0]-v[0], u[1]-v[1], u[2]-v[2]};
+        std::vector<double> ret(3);
+        ret[0] = u[0]-v[0];
+        ret[1] = u[1]-v[1];
+        ret[2] = u[2]-v[2];
+        return ret;
     }
 
-    static std::vector<double> normalize(const std::vector<double> &v) {
+    /*static std::vector<double> normalize(const std::vector<double> &v) {
         return div(v,norm(v));
     }*/
 
@@ -218,7 +223,7 @@ class Conic { public:
         for (unsigned nc(0);nc<10;nc++) {
             sincos(x,&es,&ec);
             es*=e; ec*=e; f = x-es-Ms;
-            if (fabs(f)<1e-14) break;
+            if (fabs(f)<1e-15) break;
             fp = 1.0-ec; dx = -f/fp;
             dx = -f/(fp + 0.5*dx*es);
             dx = -f/(fp + 0.5*dx*es + dx*dx*ec/6.0);
@@ -231,7 +236,7 @@ class Conic { public:
     std::vector<double> elements(double t) const {
         if(t==t0) {
             //return {rp,e,i,O,w,M0,t0,mu};
-            std::vector<double> ret;
+            std::vector<double> ret(8);
             ret[0] = rp; ret[1] =  e; ret[2] =  i; ret[3] =  O;
             ret[4] =  w; ret[5] = M0; ret[6] = t0; ret[7] = mu;
             return ret;

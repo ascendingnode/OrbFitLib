@@ -1,19 +1,82 @@
 # distutils: language = c++
 # distutils: extra_compile_args = -O3
 
-# Numpy and math
-import numpy as np
-cimport numpy as np
+####################################################
+
+# Standard math
 import math
 
+# Numpy and Scipy
+import numpy as np
+cimport numpy as np
 import scipy.optimize as opt
-from PyNBody import Conic
-import SimSpice as spice
+
+# C++ vector for Conic
+from libcpp.vector cimport vector
+
+# Emcee for cloudiness
 import emcee
 
-# C++ Standard Library vector class
-from libcpp.vector cimport vector
-from libcpp.string cimport string
+# Temporary SPICE wrapper library
+import SimSpice as spice
+
+####################################################
+
+# Import the parts of the C++ Conic class we need
+cdef extern from "conic.hpp":
+    cdef cppclass _Conic "Conic":
+        double rp,e,i,O,w,M0,t0,mu
+        _Conic() except +
+        void setup_elements(vector[double])
+        void setup_state(double,double,vector[double])
+        vector[double] elements(double)
+        vector[double] state(double)
+
+# Python Conic class
+cdef class Conic:
+
+    # Contain a copy of the C++ Conic class
+    cdef _Conic *thisptr
+    def __cinit__(self):
+        self.thisptr = new _Conic()
+    def __del__(self):
+        del self.thisptr
+
+    # Directly get the orbital elements
+    property rp:
+        def __get__(self): return self.thisptr.rp
+    property e:
+        def __get__(self): return self.thisptr.e
+    property i:
+        def __get__(self): return self.thisptr.i
+    property O:
+        def __get__(self): return self.thisptr.O
+    property w:
+        def __get__(self): return self.thisptr.w
+    property M0:
+        def __get__(self): return self.thisptr.M0
+    property t0:
+        def __get__(self): return self.thisptr.t0
+    property mu:
+        def __get__(self): return self.thisptr.mu
+
+    # Setup the Conic class
+    def setup_elements(self, elts):
+        self.thisptr.setup_elements(elts)
+    def setup_state(self, t0,mu,sv):
+        self.thisptr.setup_state(t0,mu,sv)
+    def setup_rv(self, t0,mu,r,v):
+        sv = list(r)+list(v)
+        self.thisptr.setup_state(t0,mu,sv)
+
+    # Extract elements or state from the class
+    def elements(self, t):
+        return np.array(self.thisptr.elements(t))
+    def state(self, t):
+        return np.array(self.thisptr.state(t))
+    def rv(self, t):
+        sv = self.state(t)
+        return sv[:3],sv[3:]
 
 ####################################################
 
