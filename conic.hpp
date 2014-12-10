@@ -63,10 +63,6 @@ namespace vec_math {
         return ret;
     }
 
-    /*static std::vector<double> normalize(const std::vector<double> &v) {
-        return div(v,norm(v));
-    }*/
-
 }
 
 class Conic { public:
@@ -109,7 +105,9 @@ class Conic { public:
         }
         double h = sqrt(mu*p);
         muh = mu/h;
-        sincos(O,&sO,&cO); sincos(i,&si,&ci); sincos(w,&sw,&cw);
+        sO = sin(O); cO = cos(O);
+        si = sin(i); ci = cos(i);
+        sw = sin(w); cw = cos(w);
     }
 
     void setup_state(const double &t,const double &mu0,const std::vector<double> &sv) {
@@ -169,7 +167,9 @@ class Conic { public:
         double cwf = (r[0]*cos(O)+r[1]*sin(O))/rm;
         w = fixrad(atan2(swf,cwf)-f);
 
-        sincos(O,&sO,&cO); sincos(i,&si,&ci); sincos(w,&sw,&cw);
+        sO = sin(O); cO = cos(O);
+        si = sin(i); ci = cos(i);
+        sw = sin(w); cw = cos(w);
     }
 
     static double fixrad(double x) {
@@ -180,7 +180,7 @@ class Conic { public:
     std::vector<double> state(const double &t) const {
         double f = kepler( n*(t-t0) + M0 );
         double rm = p/(1. + e*cos(f));
-        double st,ct; sincos(w+f,&st,&ct);
+        double st=sin(w+f), ct=cos(w+f);
         std::vector<double> sv(6);
         sv[0] = rm*(cO*ct - sO*st*ci);
         sv[1] = rm*(sO*ct + cO*st*ci);
@@ -221,8 +221,8 @@ class Conic { public:
         if (sin(Ms)>0) x += 0.85*e;
         else           x -= 0.85*e;
         for (unsigned nc(0);nc<10;nc++) {
-            sincos(x,&es,&ec);
-            es*=e; ec*=e; f = x-es-Ms;
+            es=e*sin(x); ec=e*cos(x);
+            f = x-es-Ms;
             if (fabs(f)<1e-15) break;
             fp = 1.0-ec; dx = -f/fp;
             dx = -f/(fp + 0.5*dx*es);
