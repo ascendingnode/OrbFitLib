@@ -3,6 +3,13 @@ OrbFitLib
 
 A Python library for fitting orbits.
 
+To test it out, try:
+
+```bash
+cd demos
+python demo1.py
+```
+
 ## Requirements
 
 * Python2 2.7 or greater, or Python3 3.4 or greater
