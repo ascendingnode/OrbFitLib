@@ -20,7 +20,7 @@ if not isfile('cspice/lib/cspice.a'): nospice()
 setup(
         name = "OrbFitLib",
         ext_modules = cythonize(('OrbFitLib.pyx','SimSpice.pyx')
-            # Don't need these with Cython 0.17+
+            # Don't need these with Cython 0.17+, as the pyx files have new-style headers
             ,language='c++',extra_compile_args='-O3'
             ),
         )
