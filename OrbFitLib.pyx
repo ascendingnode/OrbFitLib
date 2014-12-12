@@ -205,6 +205,7 @@ class MPC_File:
 
     # Add spice information
     def add_spice(self, kernel):
+        self.kernel = kernel
         s2r = np.pi/(180.*3600.)
         ra_round = 0.001*s2r*15.
         de_round = 0.01*s2r
@@ -230,7 +231,23 @@ class MPC_File:
         orb.setup_state(self.et0,self.mu,state)
         return orb
 
-    # Predict RA & Dec for a given orbit
+    # Predict arbitrary geocentric RA & Dec for a given orbit
+    def predict_date(self, orbit,date):
+        c = 299792.458
+        spice.furnsh(self.kernel)
+        et = spice.str2et(date)
+        earth = spice.spkpos("0",et,"J2000","LT","399")[0]
+        spice.kclear()
+        r1 = orbit.rv(et)[0]
+        r2 = r1 + earth
+        r3 = orbit.rv(et - np.linalg.norm(r2)/c)[0]
+        r = r3 + earth
+        ra = math.atan2(r[1],r[0])
+        dec = math.atan(math.sin(ra)*r[2]/r[1])
+        if ra<0: ra += 2.*math.pi
+        return ra,dec
+
+    # Predict observational RA & Dec for a given orbit
     def predict(self, orbit):
         # Seems small when you put in km/s
         c = 299792.458
@@ -316,7 +333,9 @@ class MPC_File:
         return np.array(walkers)
 
     # Use emcee to make an unbiased cloud of solutions
-    def make_cloud(self, maxrms,nwalkers,niter1,niter2,verbose=False):
+    def make_cloud(self, maxrms,nwalkers,niter1,niter2,verbose=False,threads=1):
+
+        if verbose and threads>1: print("# Using {:} threads".format(threads))
         
         if verbose: print("# Generating initial good guess")
         g = self.good_guess(maxrms)
@@ -325,7 +344,7 @@ class MPC_File:
         walkers = self.make_walkers(g,maxrms,nwalkers)
 
         if verbose: print("# Running emcee for {:} iterations to burn in".format(niter1))
-        sampler = emcee.EnsembleSampler(nwalkers, 6, self.lnprob)
+        sampler = emcee.EnsembleSampler(nwalkers, 6, self.lnprob, threads=threads)
         pos, prob, state = sampler.run_mcmc(walkers, niter1)
 
         if verbose: print("# Running emcee for {:} iterations".format(niter2))
