@@ -232,20 +232,25 @@ class MPC_File:
         return orb
 
     # Predict arbitrary geocentric RA & Dec for a given orbit
-    def predict_date(self, orbit,date):
+    def predict_dates(self, orbit,dates):
+        if not hasattr(dates, "__len__"): dates = [dates]
+        #if isinstance(dates, str): dates = [dates]
         c = 299792.458
         spice.furnsh(self.kernel)
-        et = spice.str2et(date)
-        earth = spice.spkpos("0",et,"J2000","LT","399")[0]
+        ret = []
+        for date in dates:
+            et = spice.str2et(date)
+            earth = spice.spkpos("0",et,"J2000","LT","399")[0]
+            r1 = orbit.rv(et)[0]
+            r2 = r1 + earth
+            r3 = orbit.rv(et - np.linalg.norm(r2)/c)[0]
+            r = r3 + earth
+            ra = math.atan2(r[1],r[0])
+            dec = math.atan(math.sin(ra)*r[2]/r[1])
+            if ra<0: ra += 2.*math.pi
+            ret.append([ra,dec])
         spice.kclear()
-        r1 = orbit.rv(et)[0]
-        r2 = r1 + earth
-        r3 = orbit.rv(et - np.linalg.norm(r2)/c)[0]
-        r = r3 + earth
-        ra = math.atan2(r[1],r[0])
-        dec = math.atan(math.sin(ra)*r[2]/r[1])
-        if ra<0: ra += 2.*math.pi
-        return ra,dec
+        return ret
 
     # Predict observational RA & Dec for a given orbit
     def predict(self, orbit):
