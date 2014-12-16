@@ -5,8 +5,9 @@
 cimport numpy as np
 import numpy as np
 
-# Import C++ string library to minimize char* sillyness
+# Import C++ string and vector libraries
 from libcpp.string cimport string
+from libcpp.vector cimport vector
 
 # Import NAIF SPICE functions
 cdef extern from "cspice/include/SpiceUsr.h":
@@ -24,6 +25,11 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void radrec_c(double,double,double,double *)
     void conics_c(double *,double,double *)
     void oscelt_c(double *,double,double,double *)
+
+# Import our helper functions for SPICE's archaic preprocessor-defined objects
+cdef extern from "spice_helper.hpp":
+    vector[int] spkobjects(string kernel)
+    vector[ vector[double] ] spkcoverage(string, int)
 
 def furnsh(kernel):
     cdef string k2 = kernel.encode('UTF-8')
@@ -112,3 +118,11 @@ def oscelt(state,double et,double mu):
     cdef np.ndarray[double, ndim=1, mode="c"] elts = np.zeros(8)
     oscelt_c(&state2[0],et,mu,&elts[0])
     return elts
+
+def spkobj(kernel):
+    cdef string k2 = kernel.encode('UTF-8')
+    return np.array(spkobjects(k2),dtype=int)
+
+def spkcov(kernel,int obj):
+    cdef string k2 = kernel.encode('UTF-8')
+    return np.array(spkcoverage(k2,obj))
