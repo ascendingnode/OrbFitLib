@@ -315,10 +315,11 @@ class MPC_File:
 
     # Generate a guess with less than the given RMS error
     def good_guess(self, maxrms):
+        def weight(f): return -self.lnprob(f)
         while True:
             g = self.guess()
-            for i in range(5):
-                g = fmin(self.rms,g,disp=False)
+            for i in range(10):
+                g = fmin(weight,g,disp=False)
             if self.rms(g)<maxrms: return g
 
     # Create a group of walkers for emcee
