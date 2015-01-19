@@ -1,6 +1,8 @@
 # distutils: language = c++
 # distutils: extra_link_args = cspice/lib/cspice.a
 
+import os
+
 # Import numpy 
 cimport numpy as np
 import numpy as np
@@ -30,6 +32,8 @@ cdef extern from "cspice/include/SpiceUsr.h":
 cdef extern from "spice_helper.hpp":
     vector[int] spkobjects(string kernel)
     vector[ vector[double] ] spkcoverage(string, int)
+    void write_spk5_c(string filename,int objid,int cntrid,double epoch,
+            double cntrgm,vector[double] state,double rang, string cframe)
 
 def furnsh(kernel):
     cdef string k2 = kernel.encode('UTF-8')
@@ -126,3 +130,17 @@ def spkobj(kernel):
 def spkcov(kernel,int obj):
     cdef string k2 = kernel.encode('UTF-8')
     return np.array(spkcoverage(k2,obj))
+
+def write_spk5(filename,int objid,int cntrid,double epoch,double cntrgm,state,
+        rang=None,cframe=None,overwrite=False):
+    if os.path.isfile(filename):
+        if overwrite: os.remove(filename)
+        else:
+            print('Error! Not clobbering existing file '+filename)
+            return
+    cdef string fn2 = filename.encode('UTF-8')
+    cdef np.ndarray[double, ndim=1, mode="c"] state2 = state
+    if rang==None: rang=365.25*24.*3600.
+    if cframe==None: cframe='J2000'
+    cdef string cf2 = cframe.encode('UTF-8')
+    write_spk5_c(fn2,objid,cntrid,epoch,cntrgm,state2,rang,cf2)

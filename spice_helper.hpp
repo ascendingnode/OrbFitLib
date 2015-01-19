@@ -27,3 +27,17 @@ std::vector< std::vector<double> > spkcoverage(std::string kernel, int obj) {
     }
     return ret;
 }
+
+// Make a simple Type 05 (two-body) SPK file
+void write_spk5_c(const std::string &filename,int objid,int cntrid,double epoch,
+        double cntrgm,const std::vector<double> &state,double rang,
+        std::string cframe) {
+    std::string ifname="simple spk file", segmid="1";
+    int ncomch=5000, nstate=1, handle;
+    double cstate[1][6]; for(unsigned i=0;i<6;i++) cstate[0][i] = state[i];
+    double cepoch[1] = {epoch}, etbeg=epoch-rang, etend=epoch+rang;
+    spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
+    spkw05_c(handle,objid,cntrid,cframe.c_str(),etbeg,etend,segmid.c_str(),
+            cntrgm,nstate,cstate,cepoch);
+    spkcls_c(handle);
+}
