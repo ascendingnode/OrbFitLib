@@ -6,11 +6,13 @@
 
 // Extract the objects in an SPK kernel
 std::vector<int> spkobjects(std::string kernel) {
-    SPICEINT_CELL(ids,10000);
+    SPICEINT_CELL(ids,100);
+    scard_c(0,&ids);
     std::vector<int> ret;
     spkobj_c(kernel.c_str(),&ids);
     for(int i=0;i<card_c(&ids);i++) 
         ret.push_back(SPICE_CELL_ELEM_I(&ids,i));
+    for(int i=0;i<card_c(&ids);i++)
     return ret;
 }
 
