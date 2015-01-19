@@ -381,7 +381,7 @@ class deltav:
     def calc_orb(self, tf):
         vt = self.calc_vt(tf)
         ret = Conic()
-        ret.setup_rv(self.orbit.t0,self.orbit.mu,self.rsc,vt)
+        ret.setup_rv(self.et0,self.orbit.mu,self.rsc,vt)
         return ret
 
     # Calculate the delta v for an encounter time
