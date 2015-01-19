@@ -294,6 +294,10 @@ class MPC_File:
             return 0.0
         return -np.inf
 
+    def save_kernel(self, g,fn,objid,overwrite=False):
+        year = 365.25*24.*3600.
+        spice.write_spk5(fn,objid,0,self.et0,self.mu,g,10*year,'J2000',overwrite)
+
     # Calculate log probability of a given state vector
     def lnprob(self, state):
         orb = self.to_orbit(state)
