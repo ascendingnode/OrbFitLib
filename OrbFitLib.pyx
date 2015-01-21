@@ -318,13 +318,16 @@ class MPC_File:
         return orb.state(self.et0)
 
     # Generate a guess with less than the given RMS error
-    def good_guess(self, maxrms):
+    def good_guess(self, maxrms,niter=100):
         def weight(f): return -self.lnprob(f)
-        while True:
+        for j in range(niter):
             g = self.guess()
             for i in range(10):
                 g = fmin(weight,g,disp=False)
-            if self.rms(g)<maxrms: return g
+            r = self.rms(g)
+            if r<maxrms: return g
+            if j==0 or r<br: (bg,br) = (g,r)
+        return bg
 
     # Create a group of walkers for emcee
     def make_walkers(self, g,maxrms,nwalkers):
