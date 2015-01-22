@@ -190,9 +190,10 @@ class MPC_File:
         self.inv_sigma2 = []
         if fn!=None: self.read_file(fn)
         # Rough priors for TNOs
-        self.maxe = 0.9
-        self.mina = 25*self.AU
-        self.maxa = 100*self.AU
+        self.maxe = 1.
+        self.mina = 20*self.AU
+        self.maxa = 200*self.AU
+        self.mintiss = 1.
 
     # Read an MPC file
     def read_file(self, fn):
@@ -288,11 +289,23 @@ class MPC_File:
         # P ~ exp( -X2 / 2 )
         return -0.5*self.X2(orbit)
 
+    def tisserand(self, orbit):
+        orb = eq2ec_orbit(orbit)
+        if orb.e>1.: return 0
+        ap = 30.1
+        a = orb.rp/(self.AU*(1-orb.e))
+        return (ap/a) + 2.*math.sqrt( (a/ap)*(1-orb.e**2) )*math.cos(orb.i)
+
     # Apply priors
     def lnprior(self, orbit):
-        if 0 < orbit.e < self.maxe and self.mina < orbit.rp/(1.-orbit.e) < self.maxa:
+        #if orbit.e > 0.2: return -np.inf
+        #if self.mina > orbit.rp/(1.-orbit.e): return -np.inf
+        #if self.tisserand(orbit) < 3.: return -np.inf
+        #return 0.
+        #if 0 < orbit.e < self.maxe and self.mina < orbit.rp/(1.-orbit.e) < self.maxa:
+        if 0 < orbit.e < self.maxe and self.mina < orbit.rp/(1.-orbit.e) < self.maxa and self.tisserand(orbit)>self.mintiss:
             return 0.0
-        return -np.inf
+        else: return -np.inf
 
     def save_kernel(self, g,fn,objid,overwrite=False):
         year = 365.25*24.*3600.
@@ -321,11 +334,13 @@ class MPC_File:
     def good_guess(self, maxrms,niter=100):
         def weight(f): return -self.lnprob(f)
         for j in range(niter):
-            g = self.guess()
-            for i in range(10):
+            while True:
+                g = self.guess()
+                if np.isfinite(weight(g)): break
+            for i in range(25):
                 g = fmin(weight,g,disp=False)
-            r = self.rms(g)
-            if r<maxrms: return g
+            r = weight(g)
+            if self.rms(g)<maxrms: return g
             if j==0 or r<br: (bg,br) = (g,r)
         return bg
 
