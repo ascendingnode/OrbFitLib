@@ -12,7 +12,6 @@ std::vector<int> spkobjects(std::string kernel) {
     spkobj_c(kernel.c_str(),&ids);
     for(int i=0;i<card_c(&ids);i++) 
         ret.push_back(SPICE_CELL_ELEM_I(&ids,i));
-    for(int i=0;i<card_c(&ids);i++)
     return ret;
 }
 
@@ -41,5 +40,16 @@ void write_spk5_c(const std::string &filename,int objid,int cntrid,double epoch,
     spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
     spkw05_c(handle,objid,cntrid,cframe.c_str(),etbeg,etend,segmid.c_str(),
             cntrgm,nstate,cstate,cepoch);
+    spkcls_c(handle);
+}
+
+// Make a single-segment Type 03 (Chebyshev) SPK file
+void write_spk3_c(const std::string &filename,int body,int center,const std::string &frame,
+        double first,double last,double intlen,unsigned n,unsigned polydg,
+        ConstSpiceDouble *cdata, double btime) {
+    std::string ifname="type 3 spk file", segid="1";
+    int ncomch=5000,handle;
+    spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
+    spkw03_c(handle,body,center,frame.c_str(),first,last,segid.c_str(),intlen,n,polydg,cdata,btime);
     spkcls_c(handle);
 }

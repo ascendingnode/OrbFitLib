@@ -27,6 +27,7 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void radrec_c(double,double,double,double *)
     void conics_c(double *,double,double *)
     void oscelt_c(double *,double,double,double *)
+    void pxform_c(char *,char *,double,double[3][3])
 
 # Import our helper functions for SPICE's archaic preprocessor-defined objects
 cdef extern from "spice_helper.hpp":
@@ -34,6 +35,9 @@ cdef extern from "spice_helper.hpp":
     vector[ vector[double] ] spkcoverage(string, int)
     void write_spk5_c(string filename,int objid,int cntrid,double epoch,
             double cntrgm,vector[double] state,double rang, string cframe)
+    void write_spk3_c(string filename,int body,int center,string frame,
+            double first,double last,double intlen,unsigned n,unsigned polydg,
+            double* cdata, double btime)
 
 def furnsh(kernel):
     cdef string k2 = kernel.encode('UTF-8')
@@ -112,13 +116,13 @@ def radrec(double ran,double ra,double dec):
     return state
 
 def conics(elts,double et):
-    cdef np.ndarray[double, ndim=1, mode="c"] elts2 = elts
+    cdef np.ndarray[double, ndim=1, mode="c"] elts2 = np.array(elts)
     cdef np.ndarray[double, ndim=1, mode="c"] state = np.zeros(6)
     conics_c(&elts2[0],et,&state[0])
     return state
 
 def oscelt(state,double et,double mu):
-    cdef np.ndarray[double, ndim=1, mode="c"] state2 = state
+    cdef np.ndarray[double, ndim=1, mode="c"] state2 = np.array(state)
     cdef np.ndarray[double, ndim=1, mode="c"] elts = np.zeros(8)
     oscelt_c(&state2[0],et,mu,&elts[0])
     return elts
@@ -144,3 +148,30 @@ def write_spk5(filename,int objid,int cntrid,double epoch,double cntrgm,state,
     if cframe==None: cframe='J2000'
     cdef string cf2 = cframe.encode('UTF-8')
     write_spk5_c(fn2,objid,cntrid,epoch,cntrgm,state2,rang,cf2)
+
+def write_spk3(filename,int body,int center,frame,double first,double last,
+        double intlen,unsigned n,unsigned polydg,cdata,double btime,overwrite=False):
+    if os.path.isfile(filename):
+        if overwrite: os.remove(filename)
+        else:
+            print('Error! Not clobbering existing file '+filename)
+            return
+    cdef string fn2 = filename.encode('UTF-8')
+    cdef string cf2 = frame.encode('UTF-8')
+    cdef np.ndarray[double, ndim=3, mode="c"] cdata2 = np.ascontiguousarray(np.zeros((n,6,polydg+1)))
+    for i in range(n):
+        for j in range(6):
+            for k in range(polydg+1):
+                cdata2[i][j][k] = cdata[i][j][k]
+    write_spk3_c(fn2,body,center,cf2,first,last,intlen,n,polydg,&cdata2[0,0,0],btime)
+
+def pxform(fr_frame,to_frame,double et):
+    cdef string f2 = fr_frame.encode('UTF-8')
+    cdef string t2 = to_frame.encode('UTF-8')
+    #cdef np.ndarray[double, ndim=2, mode="c"] mat = np.zeros((3,3))
+    cdef double mat[3][3]
+    pxform_c(f2.c_str(),t2.c_str(),et,mat)
+    mat2 = np.zeros((3,3))
+    for i in range(3):
+        for j in range(3): mat2[i][j] = mat[i][j]
+    return mat2
