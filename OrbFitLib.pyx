@@ -4,7 +4,7 @@
 ####################################################
 
 # Standard math
-import math
+import math, multiprocessing
 
 # Numpy and Scipy
 import numpy as np
@@ -293,7 +293,7 @@ class MPC_File:
 
     # Calculate log likelihood of a given orbit
     def lnlike(self, orbit):
-        # P ~ exp( -X2 / 2 )
+        # P ~ exp( -X2 / 2 
         return -0.5*self.X2(orbit)
 
     def tisserand(self, orbit):
@@ -367,25 +367,29 @@ class MPC_File:
                     break
         return np.array(walkers)
 
-    # Use emcee to make an unbiased cloud of solutions
-    def make_cloud(self, maxrms,nwalkers,niter1,niter2,verbose=False,threads=1):
+def _lnprob(state,m,i):
+    return m.lnprob(state)
 
-        if verbose and threads>1: print("# Using {:} threads".format(threads))
+# Use emcee to make an unbiased cloud of solutions
+def make_cloud(m,maxrms,nwalkers,niter1,niter2,verbose=False,threads=1):
+
+    if verbose and threads>1: print("# Using {:} threads".format(threads))
+
+    if verbose: print("# Generating initial good guess")
+    g = m.good_guess(maxrms)
+
+    if verbose: print("# Generating {:} walkers".format(nwalkers))
+    walkers = m.make_walkers(g,maxrms,nwalkers)
+
+    if verbose: print("# Running emcee for {:} iterations to burn in".format(niter1))
+    sampler = emcee.EnsembleSampler(nwalkers, 6, _lnprob, threads=threads, args=(m,0))
+    pos, prob, state = sampler.run_mcmc(walkers, niter1)
+
+    if verbose: print("# Running emcee for {:} iterations".format(niter2))
+    sampler.reset()
+    sampler.run_mcmc(pos, niter2, rstate0=state)
         
-        if verbose: print("# Generating initial good guess")
-        g = self.good_guess(maxrms)
-
-        if verbose: print("# Generating {:} walkers".format(nwalkers))
-        walkers = self.make_walkers(g,maxrms,nwalkers)
-
-        if verbose: print("# Running emcee for {:} iterations to burn in".format(niter1))
-        sampler = emcee.EnsembleSampler(nwalkers, 6, self.lnprob, threads=threads)
-        pos, prob, state = sampler.run_mcmc(walkers, niter1)
-
-        if verbose: print("# Running emcee for {:} iterations".format(niter2))
-        sampler.run_mcmc(pos, niter2)
-        
-        return sampler
+    return sampler
 
 ####################################################
 
@@ -417,3 +421,23 @@ class deltav:
     def opt_tf(self, guess):
         return fmin(self.calc_dv,guess,disp=False)[0]
 
+def _best_flyby(a):
+    elts,guess,ssc,et0 = a
+    mu,rsc,vsc = elts[-1],ssc[:3],ssc[3:]
+    def calc_dv(tf):
+        rf = spice.conics(elts,tf)[:3]
+        return np.linalg.norm(vsc-lambert_transfer(mu,rsc,rf,tf-et0))
+    btf = fmin(calc_dv,guess,disp=False)[0]
+    return btf,calc_dv(btf)
+
+def best_flyby(elts,guess,ssc,et0,multi=1):
+    elts = np.array(elts)
+    if len(elts.shape)==1: elts=[elts]
+    args = [[e,guess,ssc,et0] for e in elts]
+    if multi==1:
+        res = map(_best_flyby, args)
+    else:
+        pool = multiprocessing.Pool(multi)
+        res = pool.map(_best_flyby, args)
+        pool.close()
+    return res
