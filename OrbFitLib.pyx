@@ -77,6 +77,13 @@ cdef class Conic:
         sv = self.state(t)
         return sv[:3],sv[3:]
 
+    # Make the class picklible
+    def __reduce__(self):
+        d = {'elements' : self.elements(self.t0)}
+        return (Conic, (), d)
+    def __setstate__(self, d):
+        self.setup_elements(d['elements'])
+
 ####################################################
 
 # Import the parts of the C++ Lambert class we need
@@ -162,24 +169,24 @@ def sex2rad(sex):
     if d<0: dd *= -1.
     return dd*np.pi/180.;
 
+# Object to process and store an astrometric point from an MPC file
+# *** Currently only works with two-line spacecraft format ***
+class MPC_Line:
+    def __init__(self, l1=None,l2=None):
+        if l1==None or l2==None: return
+        name,date = (l1[ 6-1:12],l1[16-1:32])
+        ras ,decs = (l1[33-1:44],l1[45-1:56])
+        self.JD = MPCdate2JD(date)
+        self.ra = sex2rad(ras)*15.
+        self.dec = sex2rad(decs)
+        x = float(l2[35-1:45])
+        y = float(l2[47-1:57])
+        z = float(l2[59-1:69])
+        self.obs_geo_eq = np.array([x,y,z])
+        self.spiced = False
+
 class MPC_File:
 
-    # Object to process and store an astrometric point from an MPC file
-    # *** Currently only works with two-line spacecraft format ***
-    class MPC_Line:
-        def __init__(self, l1=None,l2=None):
-            if l1==None or l2==None: return
-            name,date = (l1[ 6-1:12],l1[16-1:32])
-            ras ,decs = (l1[33-1:44],l1[45-1:56])
-            self.JD = MPCdate2JD(date)
-            self.ra = sex2rad(ras)*15.
-            self.dec = sex2rad(decs)
-            x = float(l2[35-1:45])
-            y = float(l2[47-1:57])
-            z = float(l2[59-1:69])
-            self.obs_geo_eq = np.array([x,y,z])
-            self.spiced = False
-    
     # Constructor
     def __init__(self, fn=None):
         self.AU = 149597870.7
@@ -202,7 +209,7 @@ class MPC_File:
                 line1 = f.readline()
                 line2 = f.readline()
                 if not line1 or not line2: break
-                self.lines.append(self.MPC_Line(line1,line2))
+                self.lines.append(MPC_Line(line1,line2))
 
     # Add spice information
     def add_spice(self, kernel):
