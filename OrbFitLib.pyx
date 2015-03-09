@@ -290,7 +290,23 @@ class MPC_File:
     def X2(self, orbit):
         #return np.sum((self.radec-self.predict(orbit))**2*self.inv_sigma2)
         return np.sum(np.square(self.radec-self.predict(orbit))*self.inv_sigma2)
-
+ 
+    # Calculate the covariance matrix of a given state vector
+    def covariance(self, state):
+        m,n = len(self.radec),len(state)
+        p = self.predict(self.to_orbit(state))
+        A,dt = [],1e5
+        for i in range(n):    
+            state1 = np.copy(state)
+            state1[i] *= 1.+(1./dt)
+            q = self.predict(self.to_orbit(state1))
+            A.append((q-p)*dt/state1[i])
+        q = self.radec-p
+        rX2 = np.dot(np.square(q),self.inv_sigma2)/(m-n)
+        A2 = [row*self.inv_sigma2 for row in A]
+        icov = np.dot(A2,np.transpose(A))/rX2
+        return np.linalg.inv(icov)
+ 
     # Calculate log likelihood of a given orbit
     def lnlike(self, orbit):
         # P ~ exp( -X2 / 2 
