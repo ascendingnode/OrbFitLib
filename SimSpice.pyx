@@ -28,6 +28,7 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void conics_c(double *,double,double *)
     void oscelt_c(double *,double,double,double *)
     void pxform_c(char *,char *,double,double[3][3])
+    void sxform_c(char *,char *,double,double[6][6])
 
 # Import our helper functions for SPICE's archaic preprocessor-defined objects
 cdef extern from "spice_helper.hpp":
@@ -168,10 +169,19 @@ def write_spk3(filename,int body,int center,frame,double first,double last,
 def pxform(fr_frame,to_frame,double et):
     cdef string f2 = fr_frame.encode('UTF-8')
     cdef string t2 = to_frame.encode('UTF-8')
-    #cdef np.ndarray[double, ndim=2, mode="c"] mat = np.zeros((3,3))
     cdef double mat[3][3]
     pxform_c(f2.c_str(),t2.c_str(),et,mat)
     mat2 = np.zeros((3,3))
     for i in range(3):
         for j in range(3): mat2[i][j] = mat[i][j]
+    return mat2
+
+def sxform(fr_frame,to_frame,double et):
+    cdef string f2 = fr_frame.encode('UTF-8')
+    cdef string t2 = to_frame.encode('UTF-8')
+    cdef double mat[6][6]
+    sxform_c(f2.c_str(),t2.c_str(),et,mat)
+    mat2 = np.zeros((6,6))
+    for i in range(6):
+        for j in range(6): mat2[i][j] = mat[i][j]
     return mat2
