@@ -437,6 +437,14 @@ class deltav:
     def opt_tf(self, guess):
         return fmin(self.calc_dv,guess,disp=False)[0]
 
+def transfer_orbit(ele1,ele2,tb,tf):
+    ssc = spice.conics(ele1,tb)
+    rf  = spice.conics(ele2,tf)[:3]
+    mu,rsc,vsc = ele1[-1],ssc[:3],ssc[3:]
+    vt = lambert_transfer(mu,rsc,rf,tf-tb)
+    ssc3 = np.concatenate((rsc,vt))
+    return spice.oscelt(ssc3,tb,mu)
+
 def _best_flyby(a):
     elts,guess,ssc,et0 = a
     mu,rsc,vsc = elts[-1],ssc[:3],ssc[3:]

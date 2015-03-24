@@ -54,14 +54,14 @@ namespace vec_math {
         return ret;
     }
 
-    static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
+    /*static std::vector<double> sub(const std::vector<double> &u,const std::vector<double> &v) {
         //return {u[0]-v[0], u[1]-v[1], u[2]-v[2]};
         std::vector<double> ret(3);
         ret[0] = u[0]-v[0];
         ret[1] = u[1]-v[1];
         ret[2] = u[2]-v[2];
         return ret;
-    }
+    }*/
 
 }
 
