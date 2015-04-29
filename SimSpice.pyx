@@ -29,6 +29,8 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void oscelt_c(double *,double,double,double *)
     void pxform_c(char *,char *,double,double[3][3])
     void sxform_c(char *,char *,double,double[6][6])
+    void getfov_c(int,int,int,int,char *,char *,double[3],int *,double[][3])
+    void bodn2c_c(char *,int *,int *)
 
 # Import our helper functions for SPICE's archaic preprocessor-defined objects
 cdef extern from "spice_helper.hpp":
@@ -185,3 +187,27 @@ def sxform(fr_frame,to_frame,double et):
     for i in range(6):
         for j in range(6): mat2[i][j] = mat[i][j]
     return mat2
+
+def getfov(int instid):
+    cdef int room = 256
+    cdef int shapelen = 256
+    cdef int framelen = 256
+    cdef char shape[256]
+    cdef char frame[256]
+    cdef np.ndarray[double, ndim=1, mode="c"] bsight = np.zeros(3)
+    cdef int n
+    cdef double bounds[256][3]
+    getfov_c(instid,room,shapelen,framelen,shape,frame,&bsight[0],&n,bounds)
+    bounds2 = np.zeros((n,3))
+    for i in range(n):
+        for j in range(3):
+            bounds2[i][j] = bounds[i][j]
+    return shape.decode('UTF-8'),frame.decode('UTF-8'),bsight,bounds2
+
+def bodn2c(name):
+    cdef int objid=0, found
+    cdef string n2 = name.encode('UTF-8')
+    bodn2c_c(n2.c_str(),&objid,&found)
+    if found>0: f2 = True
+    else: f2 = False
+    return objid,f2
