@@ -36,8 +36,10 @@ cdef extern from "cspice/include/SpiceUsr.h":
 cdef extern from "spice_helper.hpp":
     vector[int] spkobjects(string kernel)
     vector[ vector[double] ] spkcoverage(string, int)
-    void write_spk5_c(string filename,int objid,int cntrid,double epoch,
-            double cntrgm,vector[double] state,double rang, string cframe)
+    void write_spk5_c(string filename,int objid,int cntrid,string cframe,double etbeg,
+            double etend,double cntrgm,int nstate,double *cstate,double *cepoch)
+            #string filename,int objid,int cntrid,double epoch,
+            #double cntrgm,vector[double] state,double rang, string cframe)
     void write_spk3_c(string filename,int body,int center,string frame,
             double first,double last,double intlen,unsigned n,unsigned polydg,
             double* cdata, double btime)
@@ -138,19 +140,25 @@ def spkcov(kernel,int obj):
     cdef string k2 = kernel.encode('UTF-8')
     return np.array(spkcoverage(k2,obj))
 
-def write_spk5(filename,int objid,int cntrid,double epoch,double cntrgm,state,
-        rang=None,cframe=None,overwrite=False):
+def write_spk5(filename,int objid,int cntrid,epochs,double cntrgm,states,cframe=None,overwrite=False):
     if os.path.isfile(filename):
         if overwrite: os.remove(filename)
         else:
             print('Error! Not clobbering existing file '+filename)
             return
     cdef string fn2 = filename.encode('UTF-8')
-    cdef np.ndarray[double, ndim=1, mode="c"] state2 = state
-    if rang==None: rang=365.25*24.*3600.
+    #cdef np.ndarray[double, ndim=1, mode="c"] state2 = state
+    #if rang==None: rang=365.25*24.*3600.
+    n = len(epochs)
+    cdef np.ndarray[double, ndim=1, mode="c"] cepoch = epochs
+    cdef np.ndarray[double, ndim=2, mode="c"] cstate = np.ascontiguousarray(np.zeros((n,6)))
+    for i in range(n):
+        for j in range(6):
+            cstate[i][j] = states[i][j]
     if cframe==None: cframe='J2000'
     cdef string cf2 = cframe.encode('UTF-8')
-    write_spk5_c(fn2,objid,cntrid,epoch,cntrgm,state2,rang,cf2)
+    write_spk5_c(fn2,objid,cntrid,cf2,epochs[0],epochs[-1],cntrgm,n,&cstate[0,0],&cepoch[0])
+    #write_spk5_c(fn2,objid,cntrid,epoch,cntrgm,state2,rang,cf2)
 
 def write_spk3(filename,int body,int center,frame,double first,double last,
         double intlen,unsigned n,unsigned polydg,cdata,double btime,overwrite=False):
