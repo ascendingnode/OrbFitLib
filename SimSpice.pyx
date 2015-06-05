@@ -31,6 +31,8 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void sxform_c(char *,char *,double,double[6][6])
     void getfov_c(int,int,int,int,char *,char *,double[3],int *,double[][3])
     void bodn2c_c(char *,int *,int *)
+    void subpnt_c(char *,char *,double,char *,char *,char *,double[3],double *,double[3])
+    void subslr_c(char *,char *,double,char *,char *,char *,double[3],double *,double[3])
 
 # Import our helper functions for SPICE's archaic preprocessor-defined objects
 cdef extern from "spice_helper.hpp":
@@ -38,8 +40,6 @@ cdef extern from "spice_helper.hpp":
     vector[ vector[double] ] spkcoverage(string, int)
     void write_spk5_c(string filename,int objid,int cntrid,string cframe,double etbeg,
             double etend,double cntrgm,int nstate,double *cstate,double *cepoch)
-            #string filename,int objid,int cntrid,double epoch,
-            #double cntrgm,vector[double] state,double rang, string cframe)
     void write_spk3_c(string filename,int body,int center,string frame,
             double first,double last,double intlen,unsigned n,unsigned polydg,
             double* cdata, double btime)
@@ -147,8 +147,6 @@ def write_spk5(filename,int objid,int cntrid,epochs,double cntrgm,states,cframe=
             print('Error! Not clobbering existing file '+filename)
             return
     cdef string fn2 = filename.encode('UTF-8')
-    #cdef np.ndarray[double, ndim=1, mode="c"] state2 = state
-    #if rang==None: rang=365.25*24.*3600.
     n = len(epochs)
     cdef np.ndarray[double, ndim=1, mode="c"] cepoch = epochs
     cdef np.ndarray[double, ndim=2, mode="c"] cstate = np.ascontiguousarray(np.zeros((n,6)))
@@ -158,7 +156,6 @@ def write_spk5(filename,int objid,int cntrid,epochs,double cntrgm,states,cframe=
     if cframe==None: cframe='J2000'
     cdef string cf2 = cframe.encode('UTF-8')
     write_spk5_c(fn2,objid,cntrid,cf2,epochs[0],epochs[-1],cntrgm,n,&cstate[0,0],&cepoch[0])
-    #write_spk5_c(fn2,objid,cntrid,epoch,cntrgm,state2,rang,cf2)
 
 def write_spk3(filename,int body,int center,frame,double first,double last,
         double intlen,unsigned n,unsigned polydg,cdata,double btime,overwrite=False):
@@ -219,3 +216,29 @@ def bodn2c(name):
     if found>0: f2 = True
     else: f2 = False
     return objid,f2
+
+def subpnt(method,target,double et,fixref,abcorr,obsrvr):
+    cdef string method2 = method.encode('UTF-8')
+    cdef string target2 = target.encode('UTF-8')
+    cdef string fixref2 = fixref.encode('UTF-8')
+    cdef string abcorr2 = abcorr.encode('UTF-8')
+    cdef string obsrvr2 = obsrvr.encode('UTF-8')
+    cdef np.ndarray[double, ndim=1, mode="c"] spoint = np.zeros(3)
+    cdef double trgepc
+    cdef np.ndarray[double, ndim=1, mode="c"] srfvec = np.zeros(3)
+    subpnt_c(method2.c_str(),target2.c_str(),et,fixref2.c_str(),abcorr2.c_str(),
+            obsrvr2.c_str(),&spoint[0],&trgepc,&srfvec[0])
+    return spoint,trgepc,srfvec
+
+def subslr(method,target,double et,fixref,abcorr,obsrvr):
+    cdef string method2 = method.encode('UTF-8')
+    cdef string target2 = target.encode('UTF-8')
+    cdef string fixref2 = fixref.encode('UTF-8')
+    cdef string abcorr2 = abcorr.encode('UTF-8')
+    cdef string obsrvr2 = obsrvr.encode('UTF-8')
+    cdef np.ndarray[double, ndim=1, mode="c"] spoint = np.zeros(3)
+    cdef double trgepc
+    cdef np.ndarray[double, ndim=1, mode="c"] srfvec = np.zeros(3)
+    subslr_c(method2.c_str(),target2.c_str(),et,fixref2.c_str(),abcorr2.c_str(),
+            obsrvr2.c_str(),&spoint[0],&trgepc,&srfvec[0])
+    return spoint,trgepc,srfvec
