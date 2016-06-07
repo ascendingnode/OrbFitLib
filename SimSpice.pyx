@@ -33,6 +33,8 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void bodn2c_c(char *,int *,int *)
     void subpnt_c(char *,char *,double,char *,char *,char *,double[3],double *,double[3])
     void subslr_c(char *,char *,double,char *,char *,char *,double[3],double *,double[3])
+    void recgeo_c(double[3],double,double,double *,double *,double *)
+    void georec_c(double,double,double, double,double, double[3])
 
 # Import our helper functions for SPICE's archaic preprocessor-defined objects
 cdef extern from "spice_helper.hpp":
@@ -242,3 +244,14 @@ def subslr(method,target,double et,fixref,abcorr,obsrvr):
     subslr_c(method2.c_str(),target2.c_str(),et,fixref2.c_str(),abcorr2.c_str(),
             obsrvr2.c_str(),&spoint[0],&trgepc,&srfvec[0])
     return spoint,trgepc,srfvec
+
+def recgeo(rectan,double re,double f):
+    cdef double lon, lat, alt
+    cdef np.ndarray[double, ndim=1, mode="c"] state = np.array(rectan,dtype=float)
+    recgeo_c(&state[0],re,f,&lon,&lat,&alt)
+    return lon, lat, alt
+
+def georec(double lon,double lat,double alt,double re,double f):
+    cdef np.ndarray[double, ndim=1, mode="c"] rectan = np.zeros(3)
+    georec_c(lon,lat,alt,re,f,&rectan[0])
+    return rectan
