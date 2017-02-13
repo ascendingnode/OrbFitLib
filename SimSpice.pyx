@@ -45,6 +45,8 @@ cdef extern from "spice_helper.hpp":
     void write_spk3_c(string filename,int body,int center,string frame,
             double first,double last,double intlen,unsigned n,unsigned polydg,
             double* cdata, double btime)
+    void write_spk9_c(string filename,int body,int center,string frame,
+            double first,double last,int n,int degree,double *states,double *epochs)
 
 def furnsh(kernel):
     cdef string k2 = kernel.encode('UTF-8')
@@ -174,6 +176,23 @@ def write_spk3(filename,int body,int center,frame,double first,double last,
             for k in range(polydg+1):
                 cdata2[i][j][k] = cdata[i][j][k]
     write_spk3_c(fn2,body,center,cf2,first,last,intlen,n,polydg,&cdata2[0,0,0],btime)
+
+def write_spk9(filename,int body,int center,epochs,states,degree=15,cframe=None,overwrite=False):
+    if os.path.isfile(filename):
+        if overwrite: os.remove(filename)
+        else:
+            print('Error! Not clobbering existing file '+filename)
+            return
+    cdef string fn2 = filename.encode('UTF-8')
+    n = len(epochs)
+    cdef np.ndarray[double, ndim=1, mode="c"] cepoch = epochs
+    cdef np.ndarray[double, ndim=2, mode="c"] cstate = np.ascontiguousarray(np.zeros((n,6)))
+    for i in range(n):
+        for j in range(6):
+            cstate[i][j] = states[i][j]
+    if cframe==None: cframe='J2000'
+    cdef string cf2 = cframe.encode('UTF-8')
+    write_spk9_c(fn2,body,center,cf2,epochs[0],epochs[-1],n,degree,&cstate[0,0],&cepoch[0])
 
 def pxform(fr_frame,to_frame,double et):
     cdef string f2 = fr_frame.encode('UTF-8')

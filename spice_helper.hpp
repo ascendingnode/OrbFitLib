@@ -55,3 +55,13 @@ void write_spk3_c(const std::string &filename,int body,int center,const std::str
     spkw03_c(handle,body,center,frame.c_str(),first,last,segid.c_str(),intlen,n,polydg,cdata,btime);
     spkcls_c(handle);
 }
+
+// Make a single-segment Type 09 (Lagrange Interpolation) SPK file
+void write_spk9_c(const std::string &filename,int body,int center,const std::string frame,
+        double first,double last,int n,int degree,double *states,double *epochs) {
+    std::string ifname="type 9 spk file", segid="1";
+    int ncomch=5000, handle;
+    spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
+    spkw09_c(handle,body,center,frame.c_str(),first,last,segid.c_str(),degree,n,states,epochs);
+    spkcls_c(handle);
+}
