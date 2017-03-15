@@ -25,6 +25,7 @@ cdef extern from "cspice/include/SpiceUsr.h":
     void tpictr_c(char *,int,int,char *,int *,char *)
     void recrad_c(double *,double *,double *,double *)
     void radrec_c(double,double,double,double *)
+    void reclat_c(double *,double *,double *,double *)
     void conics_c(double *,double,double *)
     void oscelt_c(double *,double,double,double *)
     void pxform_c(char *,char *,double,double[3][3])
@@ -123,6 +124,12 @@ def radrec(double ran,double ra,double dec):
     cdef np.ndarray[double, ndim=1, mode="c"] state = np.zeros(3)
     radrec_c(ran,ra,dec,&state[0])
     return state
+
+def reclat(rectan):
+    cdef double ran,ra,dec
+    cdef np.ndarray[double, ndim=1, mode="c"] state = rectan
+    reclat_c(&state[0],&ran,&ra,&dec)
+    return ran,ra,dec
 
 def conics(elts,double et):
     cdef np.ndarray[double, ndim=1, mode="c"] elts2 = np.array(elts)
