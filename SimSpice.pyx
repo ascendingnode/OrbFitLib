@@ -46,6 +46,9 @@ cdef extern from "spice_helper.hpp":
     void write_spk3_c(string filename,int body,int center,string frame,
             double first,double last,double intlen,unsigned n,unsigned polydg,
             double* cdata, double btime)
+    void write_spk2_c(string filename,int body,int center,string frame,
+            double first,double last,double intlen,unsigned n,unsigned polydg,
+            double* cdata, double btime)
     void write_spk9_c(string filename,int body,int center,string frame,
             double first,double last,int n,int degree,double *states,double *epochs)
 
@@ -183,6 +186,22 @@ def write_spk3(filename,int body,int center,frame,double first,double last,
             for k in range(polydg+1):
                 cdata2[i][j][k] = cdata[i][j][k]
     write_spk3_c(fn2,body,center,cf2,first,last,intlen,n,polydg,&cdata2[0,0,0],btime)
+
+def write_spk2(filename,int body,int center,frame,double first,double last,
+        double intlen,unsigned n,unsigned polydg,cdata,double btime,overwrite=False):
+    if os.path.isfile(filename):
+        if overwrite: os.remove(filename)
+        else:
+            print('Error! Not clobbering existing file '+filename)
+            return
+    cdef string fn2 = filename.encode('UTF-8')
+    cdef string cf2 = frame.encode('UTF-8')
+    cdef np.ndarray[double, ndim=3, mode="c"] cdata2 = np.ascontiguousarray(np.zeros((n,3,polydg+1)))
+    for i in range(n):
+        for j in range(3):
+            for k in range(polydg+1):
+                cdata2[i][j][k] = cdata[i][j][k]
+    write_spk2_c(fn2,body,center,cf2,first,last,intlen,n,polydg,&cdata2[0,0,0],btime)
 
 def write_spk9(filename,int body,int center,epochs,states,degree=15,cframe=None,overwrite=False):
     if os.path.isfile(filename):
