@@ -59,10 +59,13 @@ void write_spk3_c(const std::string &filename,int body,int center,const std::str
 // Make a single-segment Type 02 (Single Chebyshev) SPK file
 void write_spk2_c(const std::string &filename,int body,int center,const std::string &frame,
         double first,double last,double intlen,unsigned n,unsigned polydg,
-        ConstSpiceDouble *cdata, double btime) {
-    std::string ifname="type 2 spk file", segid="1";
+        ConstSpiceDouble *cdata, double btime, std::string segid="1", bool append=false) {
+    std::string ifname="type 2 spk file";
     int ncomch=5000,handle;
-    spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
+    if(append)
+        spkopa_c(filename.c_str(),&handle);
+    else
+        spkopn_c(filename.c_str(),ifname.c_str(),ncomch,&handle);
     spkw02_c(handle,body,center,frame.c_str(),first,last,segid.c_str(),intlen,n,polydg,cdata,btime);
     spkcls_c(handle);
 }
